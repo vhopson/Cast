@@ -1,0 +1,181 @@
+head	1.2;
+access;
+symbols;
+locks
+	vhopson:1.2; strict;
+comment	@# @;
+
+
+1.2
+date	2018.08.26.23.37.24;	author vhopson;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2018.08.26.22.19.55;	author vhopson;	state Exp;
+branches;
+next	;
+
+
+desc
+@Original working version for first version of CAST files.
+@
+
+
+1.2
+log
+@Mostly working.  The type="efile" lines are borking up the counts
+@
+text
+@import argparse
+import xml.etree.cElementTree as ET
+import datetime
+import tempfile
+import os
+import sys
+from collections import Counter
+
+## Filter the input XML file from CAST
+#
+#
+def castFilter(in_xml, tmp) :
+	# get each individual line in the input file and process it.
+	for line in in_xml :
+		# skip the initial line of the XML file
+		if line.find("<?xml version") != -1 :
+			tmp.write(line)
+			continue
+			
+		# clean the lines that begin and end with an apostrophe
+		if line[0] == "\'" :
+			tmp_line = line[1:-2]
+			line = tmp_line
+		
+		# check to see if each line has an equal count of "<", and ">"
+		cnts = Counter(line)
+		if cnts["<"] != cnts[">"] :
+			# process the line further.  Unequal "<", and ">" counts on this line
+			# We place the missing ">" after the "type" attribute.  We search for the
+			# location and replace it.
+			indx = line.rsplit('\"', 1)
+			line = indx[0] + '">' + indx[1]
+		
+		# search for a filename with angle brackets on the line if it exists.
+		# we substitute "&lt;" for "<", and "&gt;" for ">"
+		indx = line.rsplit('\"', 4)
+		if len(indx) >= 5 :
+			if indx[1].find("<") != -1 or indx[1].find(">") != -1 :
+				indx[1] = indx[1].replace("<", "&lt;")
+				indx[1] = indx[1].replace(">", "&gt;")
+				line = indx[0] + "\"" + indx[1] + "\"" + indx[2] + "\"" + indx[3] + "\"" + indx[4]
+
+		# write the line into our temporary file
+		tmp.write(line)
+
+## Process the XML information
+#
+#
+def processCastXML(tmp, outfile) :
+	for line in tmp :
+		outfile.write(line)
+	
+## Main Entry Point
+#
+def main(args) :
+
+	# open the input file and send it to a CAST XML filter
+	print "- Beginning operation"
+	print "|- Opening \"" + args.input + "\" for CAST input XML data"
+	in_file = open(args.input, "r")
+	fd, temp_file = tempfile.mkstemp()
+	tmp = os.fdopen(fd, "w")
+	
+	# filter the XML before parsing
+	if castFilter(in_file, tmp) == False :
+		print "|- castFilter failed."
+		
+	else :
+		print "|- Opening filtered CAST XML temporary file \"" + temp_file + "\""
+		tmp.close()
+		tmp = open(temp_file, "r")
+		
+		print "|- Opening output file \"" + args.output + "\""
+		outfile = open(args.output, "w")
+		
+		print "|- Begin processing filtered CAST XML information"
+		processCastXML(tmp, outfile)
+		
+		print "|- Closing the input output file \"" + args.output + "\""
+		outfile.close()
+
+	# Cleaning up and exiting
+	print "++ Cleaning up"
+	in_file.close()
+	print "|- Deleting temporary file \"" + temp_file + "\""
+	tmp.close()
+	os.remove(temp_file)
+	
+## Environmental Set up
+#
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",  "-i", required=True, help="Input CAST XML file.")
+parser.add_argument("--output", "-o", required=True, help="Code Dx formatted XML file.")
+args = parser.parse_args()
+
+if __name__ == "__main__" :
+	main(args)
+
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d6 1
+a7 1
+import re
+d13 1
+a13 10
+	
+	retval = True
+	total_line_count = 0
+	
+	# cursory check of each line of the input file.  We simply count the "<" and ">" to
+	# be sure the count is equal.
+	angle_bracket_mismatch_counter = 0
+	apostrophe_counter = 0
+	
+	# now examine the file and transfer completed lines
+d15 18
+d34 8
+a41 5
+		# if the line begins with an apostrophe, take the things inside of them
+		if line[0] == "\'" :
+			tmpline = line[1:-2]
+			line = tmpline
+			apostrophe_counter += 1
+d43 2
+a44 20
+		# examine the strings in the line through a regular expression.  If any
+		# of them contain "<" or ">", they need to be cleaned.
+		strings = re.match('(\".*\")', line)
+		if strings != None :
+			print "strings length is ", len(strings.groups())
+			
+		total_line_count += 1
+		counts = Counter(line)
+		if counts["<"] == counts[">"] :
+			tmp.write(line)
+		else :
+			# the angle bracket counts do not match.
+			angle_bracket_mismatch_counter += 1
+	
+	print " |- castFilter Results"
+	print " |-- Angle bracket count mismatch :", angle_bracket_mismatch_counter
+	print " |-- Apostrophe at begin/end of line :", apostrophe_counter
+	print " |-- Total line count:", total_line_count
+	
+	return retval
+@
